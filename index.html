@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Herd Check · when the models agree, are they right?</title>
+<meta name="description" content="Nine models get the same question, one that code can answer. See the anonymous vote, pick the answer you trust, then reveal: was the herd right, and who made the same mistake?">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="css/style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@pollinations/ui@0.1.0-alpha.31/dist/connect.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Herd Check</h1>
+    <p>Nine models get the same question, one that code can answer. You see how they voted, pick the answer you trust, then find out whether the herd was right and who made the same mistake.</p>
+  </div>
+  <div class="topright">
+    <span id="spent" class="spent" hidden></span>
+    <polli-connect id="connect" budget="1" expiry="7"></polli-connect>
+    <span id="connect-fallback" class="hint" hidden>Sign-in unavailable. The recorded rounds still work.</span>
+    <a class="made" href="https://pollinations.ai/?ref=badge" target="_blank" rel="noopener"><img src="https://raw.githubusercontent.com/pollinations/pollinations/main/packages/ui/src/brand/badge-made-with.svg" alt="Made with pollinations.ai" height="28"></a>
+  </div>
+</header>
+
+<main>
+  <p id="facts" class="facts"></p>
+  <p id="notice" class="notice" role="status" aria-live="polite"></p>
+
+  <section id="play" class="panel" aria-label="The round" hidden>
+    <p id="roundmeta" class="meta"></p>
+    <p id="question" class="question"></p>
+    <details class="req"><summary>The exact message every model got</summary><pre id="message" class="prompt"></pre></details>
+    <h3 id="votehead"></h3>
+    <ul id="vote" class="vote"></ul>
+    <div id="reveal" aria-live="polite"></div>
+    <div class="controls">
+      <button id="nextround" type="button" class="primary">Next round</button>
+      <a id="roundlink" class="fine" href="#">Link to this round</a>
+      <span id="score" class="score"></span>
+    </div>
+  </section>
+
+  <section id="live" class="panel" aria-label="Ask new questions">
+    <h2>Ask new questions with your Pollen</h2>
+    <div id="livebody"></div>
+    <div id="liveresults"></div>
+  </section>
+
+  <section class="panel" aria-label="Results">
+    <h2>What the recorded rounds show</h2>
+    <div id="results"></div>
+  </section>
+
+  <section class="panel about" aria-label="How it works">
+    <h2>How it works</h2>
+    <div class="cols3">
+      <div><h3>Code knows the answer</h3><p>Every question comes from a generator and a seed: a weekday, a letter count, a product, a count, a reversed string, or a classic trick question with new numbers. The same code computes the truth, so nothing is judged by a model.</p></div>
+      <div><h3>One message, one reply</h3><p>Every model gets the identical message, once, with a fresh seed. It must end with one line, "ANSWER: …". The last such line is the answer; anything else is no answer and counts as not right. Nothing is guessed from the rest of the text.</p></div>
+      <div><h3>The herd</h3><p>The herd is the answer most models gave, if at least two gave it and no other answer tied. A shared mistake is two models giving the identical wrong answer. Some wrong answers match a named shortcut (one day off, one short, the intuitive trick answer), and the reveal says which.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>Text by <code>POST gen.pollinations.ai/v1/chat/completions</code>, models and prices from <code>/v1/models</code>, sign-in with Pollinations Connect. You pay for live questions with your own Pollen; the app has no backend and keeps only your picks in this browser (Pollinations Connect keeps your key in this tab's sessionStorage). <a id="src" href="#">Source</a></p>
+</footer>
+
+<script src="js/config.js"></script>
+<script src="js/quiz.js"></script>
+<script src="js/net.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

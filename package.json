@@ -1,0 +1,7 @@
+{
+  "name": "herd-check",
+  "private": true,
+  "description": "Every model gets one question that code can answer. Was the herd right?",
+  "scripts": { "test": "node --test tests/*.test.js" },
+  "license": "MIT"
+}
