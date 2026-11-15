@@ -96,7 +96,11 @@ main { max-width: 980px; margin: 0 auto; padding: 12px 20px 24px; }
 .check { font-size: 13.5px; white-space: nowrap; }
 .liverow { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin: 8px 0; }
 .field { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--muted); }
-.field select { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: var(--bg); color: var(--ink); max-width: 280px; }
+.field select, .field input, .field textarea { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: var(--bg); color: var(--ink); max-width: 280px; font: inherit; font-size: 14px; }
+.field.wide { flex: 1 1 100%; }
+.field.wide textarea { max-width: none; resize: vertical; }
+.pick.own { align-items: flex-end; }
+.pick.own .fine { flex: 1 1 100%; margin: 4px 0 0; }
 
 .cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .cols3 h3 { margin: 2px 0 4px; }

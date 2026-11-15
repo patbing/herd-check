@@ -115,3 +115,24 @@ test('plan: the first 12 rounds are 2 per family', () => {
   assert.equal(p.length, 48);
   for (const f of Q.FAMILIES) assert.equal(p.slice(0, 12).filter((r) => r.family === f).length, 2);
 });
+
+test('your own question: answer keys, free text and agreement only', () => {
+  assert.deepEqual([Q.custom('q', '1,234').kind, Q.custom('q', '1,234').truth], ['int', 1234]);
+  assert.deepEqual([Q.custom('q', 'monday').kind, Q.custom('q', 'monday').truth], ['weekday', 'Monday']);
+  assert.deepEqual([Q.custom('q', 'Paris, France!').kind, Q.custom('q', 'Paris, France!').truth], ['text', 'paris france']);
+  assert.equal(Q.custom('q', '  ').truth, null);
+  assert.equal(Q.custom('x'.repeat(900)).prompt.length, Q.MAX_PROMPT);
+  assert.ok(Q.custom('Best pizza topping?').message.endsWith('ANSWER: <your answer in a few words>'));
+
+  const free = Q.evaluate({ custom: { prompt: 'Capital of France?', answer: '' }, calls: [
+    { model: 'a', raw: 'ANSWER: Paris.' }, { model: 'b', raw: 'answer: paris' }, { model: 'c', raw: 'ANSWER: Lyon' }, { model: 'd', error: 'HTTP 500' }] });
+  assert.equal(free.herdStatus, 'unknown');
+  assert.deepEqual(free.verdicts.map((v) => v.status), ['answer', 'answer', 'answer', 'error']);
+  assert.deepEqual([free.herd.value, free.herd.size, free.herd.n], ['paris', 2, 4]);
+  assert.deepEqual(Q.tally(free.verdicts), { rows: [{ value: 'paris', count: 2 }, { value: 'lyon', count: 1 }], none: 1 });
+
+  const keyed = Q.evaluate({ custom: { prompt: 'Capital of France?', answer: 'Paris' }, calls: [
+    { model: 'a', raw: 'ANSWER: Lyon' }, { model: 'b', raw: 'ANSWER: Lyon' }, { model: 'c', raw: 'ANSWER: PARIS' }] });
+  assert.equal(keyed.herdStatus, 'wrong');
+  assert.deepEqual(keyed.verdicts.map((v) => v.status), ['wrong', 'wrong', 'right']);
+});

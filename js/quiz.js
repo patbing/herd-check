@@ -35,7 +35,10 @@
   var FAMILIES = ['weekday', 'letters', 'product', 'count', 'reverse', 'lure'];
   var ONE_LEVEL = { weekday: true, lure: true };
   var KIND = { weekday: 'weekday', letters: 'int', product: 'int', count: 'int', reverse: 'string', lure: 'int' };
-  var HINT = { weekday: 'a weekday name', int: 'a whole number', string: 'the string' };
+  var HINT = { weekday: 'a weekday name', int: 'a whole number', string: 'the string', text: 'your answer in a few words' };
+  var MAX_PROMPT = 500;
+  // Free-text answers are grouped after lowercasing and dropping punctuation, nothing more.
+  function norm(s) { return String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
 
   var gens = {
     weekday: function (r) {
@@ -140,6 +143,19 @@
     return q;
   }
 
+  // The visitor's own question. With an answer key it is judged like the rest; without one, agreement is all it shows.
+  function custom(prompt, answer) {
+    var p = String(prompt == null ? '' : prompt).trim().slice(0, MAX_PROMPT), a = String(answer == null ? '' : answer).trim();
+    var kind = 'text', truth = null, day = DAYS.filter(function (d) { return d.toLowerCase() === a.toLowerCase(); })[0];
+    if (/^-?\d[\d,_ ]*$/.test(a)) { kind = 'int'; truth = Number(a.replace(/[,_ ]/g, '')); }
+    else if (day) { kind = 'weekday'; truth = day; }
+    else if (norm(a)) truth = norm(a);
+    return {
+      family: 'custom', level: 1, kind: kind, prompt: p, truth: truth, lures: {}, answer: a,
+      message: p + '\n\nReply with one line only, in exactly this form:\nANSWER: <' + HINT[kind] + '>',
+      show: truth == null ? 'No answer key was given, so this round shows agreement only.' : 'Your answer key: ' + a + '.'
+    };
+  }
   function messages(q) { return [{ role: 'user', content: q.message }]; }
 
   // model: { id, effort }. Same body in the browser and in tools/record.mjs.
@@ -173,6 +189,7 @@
       var digits = n[0].replace(/[,_ ]/g, '');
       return { status: 'answer', value: Number(digits) };
     }
+    if (kind === 'text') { var t = norm(v); return t ? { status: 'answer', value: t } : { status: 'format' }; }
     var str = v.toLowerCase().replace(/[^a-z]/g, '');
     return str ? { status: 'answer', value: str } : { status: 'format' };
   }
@@ -181,17 +198,18 @@
   function judge(q, call) {
     if (!call || call.error != null) return { status: 'error', error: call ? call.error : 'missing' };
     var p = parse(call.raw, q.kind);
-    if (p.status !== 'answer') return p;
+    if (p.status !== 'answer' || q.truth == null) return p;
     if (p.value === q.truth) return { status: 'right', value: p.value };
     var out = { status: 'wrong', value: p.value };
     for (var label in q.lures) if (q.lures[label] === p.value) out.lure = label;
     return out;
   }
 
+  function answered(v) { return v.status === 'right' || v.status === 'wrong' || v.status === 'answer'; }
   // The most common parsed value held by >= 2 models, with no tie for first. n counts every model asked.
   function herd(verdicts) {
     var counts = new Map();
-    verdicts.forEach(function (v) { if (v.status === 'right' || v.status === 'wrong') counts.set(v.value, (counts.get(v.value) || 0) + 1); });
+    verdicts.forEach(function (v) { if (answered(v)) counts.set(v.value, (counts.get(v.value) || 0) + 1); });
     var best = null, size = 0, tie = false;
     counts.forEach(function (c, val) { if (c > size) { best = val; size = c; tie = false; } else if (c === size) tie = true; });
     var n = verdicts.length;
@@ -203,7 +221,7 @@
   function tally(verdicts) {
     var m = new Map(), none = 0;
     verdicts.forEach(function (v) {
-      if (v.status === 'right' || v.status === 'wrong') m.set(v.value, (m.get(v.value) || 0) + 1); else none++;
+      if (answered(v)) m.set(v.value, (m.get(v.value) || 0) + 1); else none++;
     });
     var rows = [];
     m.forEach(function (c, val) { rows.push({ value: val, count: c }); });
@@ -213,10 +231,10 @@
 
   // round: { id, family, level, seed, calls: [{ model, raw | error, usage }] }
   function evaluate(round) {
-    var q = gen(round.family, round.seed, round.level);
+    var q = round.custom ? custom(round.custom.prompt, round.custom.answer) : gen(round.family, round.seed, round.level);
     var verdicts = round.calls.map(function (c) { var v = judge(q, c); v.model = c.model; return v; });
     var h = herd(verdicts);
-    var herdStatus = h.value == null ? 'none' : (h.value === q.truth ? 'right' : 'wrong');
+    var herdStatus = q.truth == null ? 'unknown' : h.value == null ? 'none' : (h.value === q.truth ? 'right' : 'wrong');
     return { id: round.id, round: round, q: q, verdicts: verdicts, herd: h, herdStatus: herdStatus };
   }
 
@@ -280,7 +298,7 @@
   }
 
   return {
-    FAMILIES: FAMILIES, HARD: HARD, DAYS: DAYS, WORDS: WORDS, mulberry32: mulberry32, gen: gen, messages: messages, request: request,
+    FAMILIES: FAMILIES, HARD: HARD, DAYS: DAYS, WORDS: WORDS, mulberry32: mulberry32, gen: gen, custom: custom, MAX_PROMPT: MAX_PROMPT, answered: answered, messages: messages, request: request,
     parse: parse, judge: judge, herd: herd, tally: tally, evaluate: evaluate, bucketOf: bucketOf, stats: stats, plan: plan
   };
 });

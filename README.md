@@ -4,7 +4,7 @@
 
 **When the models agree, are they right?**
 
-Nine free models from seven labs get the identical question, once each. Every question is one that code can answer: a weekday, a letter count, a product, a count, a reversed string, a classic trick question with new numbers. You see the vote with the names hidden, pick the answer you trust, then the reveal shows the truth, who said what, and who made the same mistake. Ask new questions with your own Pollen (BYOP).
+Nine free models from seven labs get the identical question, once each. Every question is one that code can answer: a weekday, a letter count, a product, a count, a reversed string, a classic trick question with new numbers. You see the vote with the names hidden, pick the answer you trust, then the reveal shows the truth, who said what, and who made the same mistake. Signed in, ask your own question to the same models, with an answer key to judge them or without one to see how far they agree, or ask new generated questions, all with your own Pollen (BYOP).
 
 **Live app:** https://patbing.github.io/herd-check/ · Pollinations quest [#19183](https://github.com/pollinations/pollinations/issues/19183)
 

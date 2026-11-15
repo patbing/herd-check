@@ -3,13 +3,13 @@
   'use strict';
   var C = window.HC.config, Q = window.HC.quiz, N = window.HC.net;
   var STORE = 'herd-check-v1';
-  var FAMILY = { weekday: 'Weekday', letters: 'Letter count', product: 'Multiplication', count: 'Counting', reverse: 'Backwards', lure: 'Trick question' };
-  var STATUS = { right: 'right', wrong: 'wrong', empty: 'empty reply', format: 'no ANSWER line', error: 'request failed' };
+  var FAMILY = { weekday: 'Weekday', letters: 'Letter count', product: 'Multiplication', count: 'Counting', reverse: 'Backwards', lure: 'Trick question', custom: 'Your question' };
+  var STATUS = { right: 'right', wrong: 'wrong', empty: 'empty reply', format: 'no ANSWER line', error: 'request failed', answer: 'answered' };
 
   var app = {
     rec: null, evals: [], byRound: {}, cur: null, notice: '',
     key: null, models: [], byId: {}, modelsError: null,
-    live: { families: Q.FAMILIES.slice(), models: null, n: 3, level: 2, rounds: [], evals: [] },
+    live: { families: Q.FAMILIES.slice(), models: null, n: 3, level: 2, rounds: [], evals: [], prompt: '', answer: '' },
     busy: false, stopAsked: false, ctrl: null, spent: 0, capSpent: 0
   };
 
@@ -55,7 +55,7 @@
   function nextRound(ev) { if (!ev.isTrusted) return; deal(); render(); $('play').scrollIntoView({ block: 'start' }); }
 
   function truthGiven(e) { return e.verdicts.some(function (v) { return v.status === 'right'; }); }
-  function pickRight(e, pick) { return pick === '__none' ? !truthGiven(e) : pick === e.q.truth; }
+  function pickRight(e, pick) { return e.q.truth == null ? null : pick === '__none' ? !truthGiven(e) : pick === e.q.truth; }
 
   function choose(value) {
     return function (ev) {
@@ -73,7 +73,7 @@
     var c = app.cur; if (!c) return;
     var e = c.e, q = e.q, t = Q.tally(e.verdicts);
     var picks = store().picks, seen = app.evals.filter(function (x) { return picks[x.id]; }).length;
-    $('roundmeta').textContent = (e.live ? 'Your live question ' + e.id.slice(1) + ' · seed ' + e.round.seed : 'Round ' + e.id) + ' · ' + FAMILY[q.family] + (q.level === 3 ? (e.live ? ' · level 3' : ' (harder set)') : '') +
+    $('roundmeta').textContent = (e.live ? 'Your live question ' + e.id.slice(1) + (e.round.custom ? '' : ' · seed ' + e.round.seed) : 'Round ' + e.id) + ' · ' + FAMILY[q.family] + (q.level === 3 ? (e.live ? ' · level 3' : ' (harder set)') : '') +
       ' · ' + e.verdicts.length + ' models, one call each' + (e.live ? '' : ' · you have played ' + seen + ' of ' + app.evals.length);
     $('question').textContent = q.prompt;
     $('message').textContent = q.message;
@@ -81,11 +81,11 @@
     var list = $('vote'); list.textContent = '';
     var max = t.rows.reduce(function (m, r) { return Math.max(m, r.count); }, 1);
     var rows = t.rows.slice();
-    if (c.revealed && !truthGiven(e)) rows.push({ value: q.truth, count: 0, missing: true });
+    if (c.revealed && q.truth != null && !truthGiven(e)) rows.push({ value: q.truth, count: 0, missing: true });
     rows.forEach(function (r) {
       var li = h('li', 'vrow');
-      var isTruth = r.value === q.truth, isHerd = e.herd.value != null && r.value === e.herd.value;
-      if (c.revealed) li.classList.add(isTruth ? 'truth' : 'nottruth');
+      var isTruth = q.truth != null && r.value === q.truth, isHerd = e.herd.value != null && r.value === e.herd.value;
+      if (c.revealed && q.truth != null) li.classList.add(isTruth ? 'truth' : 'nottruth');
       var btn = h('button', 'vbtn'); btn.type = 'button'; btn.disabled = c.revealed;
       btn.appendChild(h('span', 'vval', fmtV(r.value)));
       var bar = h('span', 'vbar'); var fill = h('span', 'vfill'); fill.style.width = (100 * r.count / max) + '%'; bar.appendChild(fill); btn.appendChild(bar);
@@ -100,7 +100,7 @@
         if (c.pick === r.value) tags.appendChild(h('span', 'chip you', 'your pick'));
         var lure = e.verdicts.filter(function (v) { return v.value === r.value && v.lure; })[0];
         if (lure) tags.appendChild(h('span', 'chip lure', 'shortcut: ' + lure.lure));
-        var who = e.verdicts.filter(function (v) { return (v.status === 'right' || v.status === 'wrong') && v.value === r.value; }).map(function (v) { return title(v.model); });
+        var who = e.verdicts.filter(function (v) { return Q.answered(v) && v.value === r.value; }).map(function (v) { return title(v.model); });
         if (who.length) tags.appendChild(h('span', 'who', who.join(' · ')));
         li.appendChild(tags);
       }
@@ -108,10 +108,10 @@
     });
     if (t.none) {
       var nli = h('li', 'vrow none');
-      nli.appendChild(h('span', 'vnone', 'no answer: ' + t.none + (c.revealed ? ' · ' + e.verdicts.filter(function (v) { return v.status !== 'right' && v.status !== 'wrong'; }).map(function (v) { return title(v.model) + ' (' + STATUS[v.status] + ')'; }).join(' · ') : ' (empty, no ANSWER line, or a failed request)')));
+      nli.appendChild(h('span', 'vnone', 'no answer: ' + t.none + (c.revealed ? ' · ' + e.verdicts.filter(function (v) { return !Q.answered(v); }).map(function (v) { return title(v.model) + ' (' + STATUS[v.status] + ')'; }).join(' · ') : ' (empty, no ANSWER line, or a failed request)')));
       list.appendChild(nli);
     }
-    if (!c.revealed) {
+    if (!c.revealed && q.truth != null) {
       var li2 = h('li', 'vrow'); var nb = h('button', 'ghost', 'None of these is right'); nb.type = 'button'; nb.addEventListener('click', choose('__none')); li2.appendChild(nb); list.appendChild(li2);
     }
     renderReveal(c);
@@ -126,12 +126,13 @@
     var e = c.e, q = e.q;
     var right = pickRight(e, c.pick);
     var line = h('p', 'big');
-    line.textContent = (c.pick === '__none' ? 'You said none of these is right: ' : 'You picked ' + fmtV(c.pick) + ': ') + (right ? 'right.' : 'not right.') + ' ' +
+    line.textContent = (q.truth == null ? 'You picked ' + fmtV(c.pick) + '. No answer key, so nothing is judged: ' + (e.herd.value != null ? e.herd.size + ' of ' + e.herd.n + ' models gave the same answer.' : 'no answer had two votes, or two answers tied.') :
+      (c.pick === '__none' ? 'You said none of these is right: ' : 'You picked ' + fmtV(c.pick) + ': ') + (right ? 'right.' : 'not right.') + ' ' +
       (e.herdStatus === 'right' ? 'The herd was right (' + e.herd.size + ' of ' + e.herd.n + ').' :
         e.herdStatus === 'wrong' ? 'The herd was wrong: ' + e.herd.size + ' of ' + e.herd.n + ' said ' + fmtV(e.herd.value) + ', the answer is ' + fmtV(q.truth) + '.' :
-          (e.herd.size >= 2 ? 'There was no herd: two answers tied at ' + e.herd.size + ' votes each.' : 'There was no herd: no answer had two votes.'));
+          (e.herd.size >= 2 ? 'There was no herd: two answers tied at ' + e.herd.size + ' votes each.' : 'There was no herd: no answer had two votes.')));
     box.appendChild(line);
-    box.appendChild(h('p', 'show', 'Working: ' + q.show));
+    box.appendChild(h('p', 'show', (q.family === 'custom' ? '' : 'Working: ') + q.show));
     var alone = e.verdicts.filter(function (v) { return v.status === 'right'; });
     if (e.herdStatus !== 'right' && alone.length) box.appendChild(h('p', null, 'Right without the herd: ' + alone.map(function (v) { return title(v.model); }).join(', ') + '.'));
     var shared = new Map();
@@ -286,21 +287,35 @@
   function worst(m) { return C.WORST_IN_TOKENS * m.inPrice + maxTok(m) * m.outPrice; }
   function typical(m) { return 110 * m.inPrice + (m.effort ? 500 : 15) * m.outPrice; }
 
-  async function runLive(ev) {
-    if (!ev.isTrusted || app.busy || !app.key) return;
+  function runLive(ev) {
+    if (!ev.isTrusted) return;
+    var fams = app.live.families.slice(), level = app.live.level;
+    if (!fams.length) return;
+    run(app.live.n, function () {
+      var seedArr = new Uint32Array(1); crypto.getRandomValues(seedArr);
+      var seed = seedArr[0] >>> 1, family = fams[Math.floor(Math.random() * fams.length)];
+      var q = Q.gen(family, seed, level);
+      return { q: q, round: { family: family, level: q.level, seed: seed } };
+    });
+  }
+  function runCustom(ev) {
+    if (!ev.isTrusted) return;
+    var c = { prompt: app.live.prompt.trim().slice(0, Q.MAX_PROMPT), answer: app.live.answer.trim() };
+    if (!c.prompt) return;
+    run(1, function () { var q = Q.custom(c.prompt, c.answer); return { q: q, round: { family: 'custom', level: 1, custom: c } }; });
+  }
+  async function run(n, make) {
+    if (app.busy || !app.key) return;
     var ms = liveModels().map(function (id) { return app.byId[id]; });
-    var fams = app.live.families.slice();
-    if (ms.length < 2 || !fams.length) return;
+    if (ms.length < 2) return;
     app.busy = true; app.stopAsked = false; app.ctrl = new AbortController(); app.capSpent = 0; app.notice = '';
     render();
-    for (var i = 0; i < app.live.n && !app.stopAsked; i++) {
+    for (var i = 0; i < n && !app.stopAsked; i++) {
       // Two calls per model at worst (one retry), each charged at worst case if it fails.
       var need = ms.reduce(function (a, m) { return a + 2 * worst(m); }, 0);
       if (app.capSpent + need > C.MAX_SPEND) { app.notice = 'Stopped before a question whose calls could take this run past ' + C.MAX_SPEND + ' Pollen.'; break; }
       app.capSpent += need;
-      var seedArr = new Uint32Array(1); crypto.getRandomValues(seedArr);
-      var seed = seedArr[0] >>> 1, family = fams[Math.floor(Math.random() * fams.length)];
-      var q = Q.gen(family, seed, app.live.level), msgs = Q.messages(q);
+      var made = make(), q = made.q, msgs = Q.messages(q);
       var res = await Promise.all(ms.map(function (m) { return N.ask(app.key, m, msgs, app.ctrl.signal); }));
       var calls = res.map(function (r, j) {
         // Failed and cancelled calls can still be billed: count them at the worst case, once per attempt.
@@ -315,12 +330,13 @@
       app.capSpent += res.reduce(function (a, r, j) { return a + (r.cost != null ? r.cost : (r.tries || 1) * worst(ms[j])); }, 0);
       if (res.every(function (r) { return r.cancelled; })) break;
       var fatal = res.some(function (r) { return r.status === 401 || r.status === 402; });
-      var round = { id: 'L' + (app.live.rounds.length + 1), family: family, level: q.level, seed: seed, calls: calls };
+      var round = Object.assign({ id: 'L' + (app.live.rounds.length + 1), calls: calls }, made.round);
       app.live.rounds.push(round);
       var e = Q.evaluate(round); e.live = true;
       app.live.evals.push(e);
       // Show the first live question at once; later ones wait their turn behind "Next round".
-      if (!app.cur || !app.cur.e.live) start(e);
+      // Your own question replaces a round you have already seen.
+      if (!app.cur || !app.cur.e.live || (made.round.custom && app.cur.revealed)) start(e);
       render();
       if (fatal) break;
     }
@@ -337,10 +353,24 @@
 
   function renderLive() {
     var box = $('livebody'); box.textContent = '';
-    if (!app.key) { box.appendChild(h('p', 'hint', 'Sign in with Pollinations to ask brand-new questions (a fresh random seed each) to the same nine models or any free ones, paid with your own Pollen: under 0.01 Pollen for 5 questions, and a run stops itself at ' + C.MAX_SPEND + '.')); return; }
+    if (!app.key) { box.appendChild(h('p', 'hint', 'Sign in with Pollinations to ask your own question, or brand-new generated ones (a fresh random seed each), to the same nine models or any free ones, paid with your own Pollen: under 0.01 Pollen for 5 questions, and a run stops itself at ' + C.MAX_SPEND + '.')); return; }
     if (!app.models.length) { box.appendChild(h('p', app.modelsError ? 'hint warn' : 'hint', app.modelsError ? 'Could not load the model list: ' + app.modelsError : 'Loading the model list…')); return; }
     var sel = liveModels();
-    var fr = h('fieldset', 'pick'); fr.appendChild(h('legend', null, 'Questions'));
+    var own = h('fieldset', 'pick own'); own.appendChild(h('legend', null, 'Your own question'));
+    var ql = h('label', 'field wide'); ql.appendChild(h('span', null, 'Question (up to ' + Q.MAX_PROMPT + ' characters)'));
+    var qa = h('textarea'); qa.rows = 2; qa.maxLength = Q.MAX_PROMPT; qa.value = app.live.prompt; qa.disabled = app.busy;
+    qa.placeholder = 'Anything: a fact, a puzzle, or an opinion like "Which programming language should a beginner learn first?"';
+    qa.addEventListener('input', function () { app.live.prompt = qa.value; ob.disabled = app.busy || sel.length < 2 || !qa.value.trim(); });
+    ql.appendChild(qa); own.appendChild(ql);
+    var al = h('label', 'field'); al.appendChild(h('span', null, 'Answer key (optional)'));
+    var ai = h('input'); ai.type = 'text'; ai.maxLength = 100; ai.value = app.live.answer; ai.disabled = app.busy; ai.placeholder = 'e.g. 42, Tuesday, Paris';
+    ai.addEventListener('input', function () { app.live.answer = ai.value; });
+    al.appendChild(ai); own.appendChild(al);
+    var ob = h('button', 'primary', 'Ask your question · ' + sel.length + ' models'); ob.type = 'button';
+    ob.disabled = app.busy || sel.length < 2 || !app.live.prompt.trim(); ob.addEventListener('click', runCustom); own.appendChild(ob);
+    own.appendChild(h('p', 'fine', 'With an answer key (a number, a weekday or a short text), every reply is judged against it like the recorded rounds. Without one, nothing is judged: you see how far the models agree, and who gave the same answer. Answers are grouped after lowercasing and dropping punctuation, nothing more.'));
+    box.appendChild(own);
+    var fr = h('fieldset', 'pick'); fr.appendChild(h('legend', null, 'Generated questions'));
     Q.FAMILIES.forEach(function (f) {
       fr.appendChild(check(FAMILY[f], app.live.families.indexOf(f) >= 0, function (on) {
         app.live.families = Q.FAMILIES.filter(function (x) { return x === f ? on : app.live.families.indexOf(x) >= 0; });
@@ -384,7 +414,8 @@
       lr.appendChild(h('h3', null, 'Your live run (' + app.live.evals.length + ' question' + (app.live.evals.length === 1 ? '' : 's') + ', kept apart from the recording)'));
       var wait = app.live.evals.filter(function (e) { return !e.picked; }).length;
       if (wait) lr.appendChild(h('p', 'hint', wait + ' waiting for your pick above. Their results show here once you have picked.'));
-      var done = app.live.evals.filter(function (e) { return e.picked; });
+      // Rounds without an answer key show agreement in the round above; the stats here need a truth.
+      var done = app.live.evals.filter(function (e) { return e.picked && e.q.truth != null; });
       var inner = h('div'); lr.appendChild(inner);
       var allM = []; done.forEach(function (e) { e.round.calls.forEach(function (c) { if (allM.indexOf(c.model) < 0) allM.push(c.model); }); });
       renderStats(inner, done, allM, true);
