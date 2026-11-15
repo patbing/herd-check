@@ -35,7 +35,7 @@
   var FAMILIES = ['weekday', 'letters', 'product', 'count', 'reverse', 'lure'];
   var ONE_LEVEL = { weekday: true, lure: true };
   var KIND = { weekday: 'weekday', letters: 'int', product: 'int', count: 'int', reverse: 'string', lure: 'int' };
-  var HINT = { weekday: 'a weekday name', int: 'a whole number', string: 'the string', text: 'your answer in a few words' };
+  var HINT = { weekday: 'a weekday name', int: 'a whole number', string: 'the string', text: 'the shortest answer, one to three words' };
   var MAX_PROMPT = 500;
   // Free-text answers are grouped after lowercasing and dropping punctuation, nothing more.
   function norm(s) { return String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }

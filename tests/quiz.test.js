@@ -122,7 +122,7 @@ test('your own question: answer keys, free text and agreement only', () => {
   assert.deepEqual([Q.custom('q', 'Paris, France!').kind, Q.custom('q', 'Paris, France!').truth], ['text', 'paris france']);
   assert.equal(Q.custom('q', '  ').truth, null);
   assert.equal(Q.custom('x'.repeat(900)).prompt.length, Q.MAX_PROMPT);
-  assert.ok(Q.custom('Best pizza topping?').message.endsWith('ANSWER: <your answer in a few words>'));
+  assert.ok(Q.custom('Best pizza topping?').message.endsWith('ANSWER: <the shortest answer, one to three words>'));
 
   const free = Q.evaluate({ custom: { prompt: 'Capital of France?', answer: '' }, calls: [
     { model: 'a', raw: 'ANSWER: Paris.' }, { model: 'b', raw: 'answer: paris' }, { model: 'c', raw: 'ANSWER: Lyon' }, { model: 'd', error: 'HTTP 500' }] });

@@ -76,6 +76,11 @@
     // Same body as tools/record.mjs; a fresh seed because Pollinations caches identical bodies.
     var body = window.HC.quiz.request(model, messages, Math.floor(Math.random() * 2147483647));
     return once(key, body, signal).then(function (r) {
+      // shortcut: some providers reject reasoning_effort "low" (DeepSeek on azure-openai, 2026-11); send once more without it.
+      if (!r.ok && r.status === 400 && body.reasoning_effort && /reasoning_effort/.test(r.error)) {
+        body = Object.assign({}, body); delete body.reasoning_effort;
+        return once(key, body, signal);
+      }
       var retry = !r.ok && !r.cancelled && (r.status === 0 || r.status === 429 || r.status >= 500);
       r.tries = 1;
       if (!retry) return r;
